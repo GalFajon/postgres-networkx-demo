@@ -2,6 +2,8 @@
 
 A standalone example of PostgreSQL's `plpython3u` extension using NetworkX for graph analytics inside the database. It needs no external dataset or host Python installation.
 
+See the official [PL/Python function documentation](https://www.postgresql.org/docs/current/plpython-funcs.html) for how to define Python functions callable from SQL.
+
 PostgreSQL stores simple undirected graphs in three tables: `toy.graph`,
 `toy.vertex`, and `toy.edge`. Two SQL-callable Python functions load those rows
 through PostgreSQL's `plpy` SPI interface and run NetworkX **inside the database
