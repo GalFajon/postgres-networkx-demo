@@ -23,12 +23,62 @@ commands from this folder (the commands work in PowerShell and POSIX shells):
 
 ```sh
 docker compose up --build --wait
+```
+
+This builds the image and waits for PostgreSQL readiness. Image building needs
+network access to the image registry, Debian and PyPI.
+
+### Try your own queries
+
+Open an interactive `psql` command line inside the running database container:
+
+```sh
+docker compose exec db psql -U graph_demo -d graph_demo
+```
+
+At the `graph_demo=#` prompt, paste SQL and end each statement with a semicolon.
+For example, list the graphs and calculate their number of triangles in Python:
+
+```sql
+SELECT id, name FROM toy.graph ORDER BY id;
+
+SELECT name,
+       (toy.graph_metrics(id)->>'triangles')::integer AS triangles
+FROM toy.graph
+ORDER BY triangles DESC, id;
+```
+
+The second query returns 1 triangle for `triangle with tail` and 0 for the other
+three graphs. Change the SELECT list or add a WHERE clause to explore the data.
+You can also call the functions directly:
+
+```sql
+SELECT toy.graph_metrics(1);
+SELECT toy.shortest_path(1, 1, 4); -- returns {1,3,4}
+```
+
+Useful `psql` commands (no semicolon needed):
+
+- `\dt toy.*` lists the graph tables.
+- `\d toy.edge` shows the edge table's columns and constraints.
+- `\df toy.*` lists the example's SQL functions.
+- `\q` exits back to your shell; the database keeps running.
+
+To run a single query directly from PowerShell or a POSIX shell:
+
+```sh
+docker compose exec -T db psql -U graph_demo -d graph_demo -v ON_ERROR_STOP=1 -c "SELECT toy.shortest_path(1, 1, 4);"
+```
+
+### Run the supplied examples and checks
+
+Back in your shell, run:
+
+```sh
 docker compose exec -T db psql -U graph_demo -d graph_demo -f /demo/queries.sql
 docker compose exec -T db psql -U graph_demo -d graph_demo -f /demo/checks.sql
 ```
 
-The first command builds the image and waits for PostgreSQL readiness. Image
-building needs network access to the image registry, Debian and PyPI.
 `checks.sql` fails with a nonzero exit code on a failed assertion and rolls back
 its temporary data change. It covers exact metrics, empty and disconnected
 graphs, isolated vertices, singleton diameter, shortest paths, NULL inputs,
@@ -47,21 +97,6 @@ The triangle query returns `triangle with tail`. Its path from 1 to 4 is
 `{1,3,4}`. An empty graph is defined here as not connected, with NULL diameter.
 Unknown graph IDs or endpoints raise SQLSTATE `22023`; NULL arguments return
 SQL NULL without invoking Python (`STRICT`).
-
-Open an interactive SQL session:
-
-```sh
-docker compose exec db psql -U graph_demo -d graph_demo
-```
-
-For example:
-
-```sql
-SELECT toy.graph_metrics(1);
-SELECT toy.shortest_path(1, 1, 4);
-SELECT name FROM toy.graph
-WHERE (toy.graph_metrics(id)->>'triangles')::integer > 0;
-```
 
 Host clients can connect to `localhost:55432`, database/user `graph_demo`,
 password `graph_demo_local_only`. Change the Compose port if it is already used.
