@@ -1,0 +1,21 @@
+services:
+  db:
+    build: .
+    environment:
+      POSTGRES_DB: graph_demo
+      POSTGRES_USER: graph_demo
+      POSTGRES_PASSWORD: graph_demo_local_only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - graph_data:/var/lib/postgresql/data
+      - ./queries.sql:/demo/queries.sql:ro
+      - ./checks.sql:/demo/checks.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graph_demo -d graph_demo"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  graph_data:
