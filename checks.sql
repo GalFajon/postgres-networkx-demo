@@ -6,8 +6,9 @@ BEGIN
     ASSERT toy.graph_metrics(2) = '{"vertices":5,"edges":2,"components":3,"triangles":0,"connected":false,"diameter":null,"degree_sequence":[1,1,1,1,0]}'::jsonb;
     ASSERT toy.graph_metrics(3) = '{"vertices":0,"edges":0,"components":0,"triangles":0,"connected":false,"diameter":null,"degree_sequence":[]}'::jsonb;
     ASSERT toy.graph_metrics(4)->>'diameter' = '0';
-    ASSERT toy.shortest_path(1, 1, 4) = ARRAY[1,3,4];
-    ASSERT toy.shortest_path(1, 2, 2) = ARRAY[2];
+    ASSERT toy.shortest_path(1, 1, 4) = '[1,3,4]'::jsonb;
+    ASSERT toy.shortest_path(1, 2, 2) = '[2]'::jsonb;
+    ASSERT jsonb_typeof(toy.shortest_path(1, 1, 4)) = 'array';
     ASSERT toy.shortest_path(2, 1, 4) IS NULL;
     ASSERT toy.graph_metrics(NULL) IS NULL;
     BEGIN

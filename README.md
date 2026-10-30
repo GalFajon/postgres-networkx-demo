@@ -9,9 +9,9 @@ PostgreSQL stores simple undirected graphs in three tables: `toy.graph`,
 through PostgreSQL's `plpy` SPI interface and run NetworkX **inside the database
 server**:
 
-- `toy.graph_metrics(integer) → jsonb`: vertex/edge counts, connected components,
+- `toy.graph_metrics(bigint) → jsonb`: vertex/edge counts, connected components,
   triangles, connectedness, diameter and descending degree sequence.
-- `toy.shortest_path(integer, integer, integer) → integer[]`: a shortest path,
+- `toy.shortest_path(bigint, bigint, bigint) → jsonb`: a shortest path as a JSON array,
   or SQL NULL when the endpoints are disconnected.
 
 The image uses PostgreSQL 17 on Debian Bookworm, Debian's matching PL/Python
@@ -45,7 +45,7 @@ For example, list the graphs and calculate their number of triangles in Python:
 SELECT id, name FROM toy.graph ORDER BY id;
 
 SELECT name,
-       (toy.graph_metrics(id)->>'triangles')::integer AS triangles
+       (toy.graph_metrics(id)->>'triangles')::bigint AS triangles
 FROM toy.graph
 ORDER BY triangles DESC, id;
 ```
@@ -56,7 +56,7 @@ You can also call the functions directly:
 
 ```sql
 SELECT toy.graph_metrics(1);
-SELECT toy.shortest_path(1, 1, 4); -- returns {1,3,4}
+SELECT toy.shortest_path(1, 1, 4); -- returns [1, 3, 4]
 ```
 
 Useful `psql` commands (no semicolon needed):
@@ -96,7 +96,7 @@ Expected metrics:
 | singleton | 1 | 0 | 1 | 0 | 0 |
 
 The triangle query returns `triangle with tail`. Its path from 1 to 4 is
-`{1,3,4}`. An empty graph is defined here as not connected, with NULL diameter.
+`[1, 3, 4]`. An empty graph is defined here as not connected, with NULL diameter.
 Unknown graph IDs or endpoints raise SQLSTATE `22023`; NULL arguments return
 SQL NULL without invoking Python (`STRICT`).
 
@@ -141,10 +141,10 @@ and [data mapping documentation](https://www.postgresql.org/docs/17/plpython-dat
 
 ## Validation status
 
-Verified on 2026-10-24 with Docker's Linux engine: PostgreSQL 17.11
+Verified on 2026-10-30 with Docker's Linux engine: PostgreSQL 17.11
 (`17.11-1.pgdg12+2`, x86_64), embedded Python 3.11.2, and NetworkX 3.4.2.
 `docker compose up --build --wait` built the image, initialized the toy database
 and reported a healthy service. Both `queries.sql` and `checks.sql` completed
 with exit code 0; the checks reported `All graph checks passed`. The queries
-returned the metrics above, path `{1,3,4}`, and SQL NULL for disconnected
+returned the metrics above, path `[1, 3, 4]`, and SQL NULL for disconnected
 endpoints. Compose configuration and Python syntax were also validated.

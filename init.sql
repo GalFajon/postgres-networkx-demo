@@ -4,19 +4,19 @@ CREATE EXTENSION plpython3u;
 CREATE SCHEMA toy;
 
 CREATE TABLE toy.graph (
-    id integer PRIMARY KEY,
+    id bigint PRIMARY KEY,
     name text NOT NULL UNIQUE
 );
 CREATE TABLE toy.vertex (
-    graph_id integer REFERENCES toy.graph(id),
-    vertex integer,
+    graph_id bigint REFERENCES toy.graph(id),
+    vertex bigint,
     PRIMARY KEY (graph_id, vertex)
 );
 -- Simple undirected graphs: store each edge once, smaller endpoint first.
 CREATE TABLE toy.edge (
-    graph_id integer NOT NULL,
-    source integer NOT NULL,
-    target integer NOT NULL,
+    graph_id bigint NOT NULL,
+    source bigint NOT NULL,
+    target bigint NOT NULL,
     PRIMARY KEY (graph_id, source, target),
     FOREIGN KEY (graph_id, source) REFERENCES toy.vertex(graph_id, vertex),
     FOREIGN KEY (graph_id, target) REFERENCES toy.vertex(graph_id, vertex),
@@ -33,7 +33,7 @@ INSERT INTO toy.edge VALUES
     (1, 1, 2), (1, 1, 3), (1, 2, 3), (1, 3, 4),
     (2, 1, 2), (2, 3, 4);
 
-CREATE FUNCTION toy.graph_metrics(graph_id integer)
+CREATE FUNCTION toy.graph_metrics(graph_id bigint)
 RETURNS jsonb
 LANGUAGE plpython3u STABLE STRICT PARALLEL UNSAFE
 AS $$
@@ -41,8 +41,8 @@ from graph_functions import metrics
 return metrics(plpy, graph_id)
 $$;
 
-CREATE FUNCTION toy.shortest_path(graph_id integer, source integer, target integer)
-RETURNS integer[]
+CREATE FUNCTION toy.shortest_path(graph_id bigint, source bigint, target bigint)
+RETURNS jsonb
 LANGUAGE plpython3u STABLE STRICT PARALLEL UNSAFE
 AS $$
 from graph_functions import shortest_path

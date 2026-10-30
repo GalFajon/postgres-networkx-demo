@@ -7,16 +7,16 @@ import networkx as nx
 
 def load_graph(plpy, graph_id):
     # Values are bound through SPI; SQL identifiers are fixed and qualified.
-    exists = plpy.prepare("SELECT 1 FROM toy.graph WHERE id = $1", ["integer"])
+    exists = plpy.prepare("SELECT 1 FROM toy.graph WHERE id = $1", ["bigint"])
     if not plpy.execute(exists, [graph_id]):
         plpy.error("Unknown graph id: %s" % graph_id, sqlstate="22023")
     vertices = plpy.prepare(
         "SELECT vertex FROM toy.vertex WHERE graph_id = $1 ORDER BY vertex",
-        ["integer"],
+        ["bigint"],
     )
     edges = plpy.prepare(
         "SELECT source, target FROM toy.edge WHERE graph_id = $1",
-        ["integer"],
+        ["bigint"],
     )
     graph = nx.Graph()
     # Adding vertices separately preserves isolated vertices and empty graphs.
@@ -47,6 +47,6 @@ def shortest_path(plpy, graph_id, source, target):
     if source not in graph or target not in graph:
         plpy.error("Both endpoints must be vertices of the graph", sqlstate="22023")
     try:
-        return nx.shortest_path(graph, source, target)
+        return json.dumps(nx.shortest_path(graph, source, target))
     except nx.NetworkXNoPath:
         return None
