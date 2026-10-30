@@ -23,22 +23,25 @@ queries.sql         example queries
 checks.sql          assertions; exits nonzero on failure
 ```
 
-The `toy` schema stores simple undirected graphs in three tables: `graph`,
-`vertex` and `edge` (each edge stored once, with the smaller endpoint first).
+The `toy.graph` table stores simple undirected graphs as
+[graph6](https://users.cecs.anu.edu.au/~bdm/data/formats.txt) strings, the
+encoding MathQL's graph datasets use. Vertices are numbered from 0.
 
 `init.sql` declares two SQL functions in `LANGUAGE plpython3u`. Each body imports
-`graph_functions.py`, which reads the graph's rows through PL/Python's `plpy`
-interface, builds a NetworkX graph and returns the result as JSON:
+`graph_functions.py`, which decodes the graph6 argument into a NetworkX graph
+and returns the result as JSON:
 
-- `toy.graph_metrics(bigint) → jsonb`: vertex/edge counts, components,
+- `toy.graph_metrics(text) → jsonb`: vertex/edge counts, components,
   triangles, connectedness, diameter and degree sequence.
-- `toy.shortest_path(bigint, bigint, bigint) → jsonb`: the path as a JSON
+- `toy.shortest_path(text, bigint, bigint) → jsonb`: the path as a JSON
   array, or SQL NULL when the endpoints are disconnected.
 
-Integers are `bigint` and lists are `jsonb` arrays, matching how MathQL's
+The functions take the graph as a value and read no tables, so they are
+`IMMUTABLE` and `PARALLEL SAFE`, and work on any graph6 string, not only stored
+rows. Integers are `bigint` and lists are `jsonb` arrays, matching how MathQL's
 PostgreSQL backend represents values. The functions are `STRICT` (a NULL argument
-returns NULL without calling Python), read the current table contents on every
-call, and raise SQLSTATE `22023` for an unknown graph or vertex.
+returns NULL without calling Python) and raise SQLSTATE `22023` for an invalid
+graph6 string or a vertex outside the graph.
 
 On first start with an empty data volume, the Docker entrypoint runs `init.sql`.
 After changing `init.sql`, recreate the volume (see below). After changing only
@@ -78,41 +81,38 @@ docker compose exec db psql -U graph_demo -d graph_demo
 ```
 
 ```sql
-SELECT id, name FROM toy.graph ORDER BY id;
-SELECT name, (toy.graph_metrics(id)->>'triangles')::bigint AS triangles
+SELECT id, name, graph6 FROM toy.graph ORDER BY id;
+SELECT name, (toy.graph_metrics(graph6)->>'triangles')::bigint AS triangles
 FROM toy.graph ORDER BY triangles DESC, id;
-SELECT toy.graph_metrics(1);
-SELECT toy.shortest_path(1, 1, 4);                     -- [1, 3, 4]
-SELECT toy.shortest_path(2, 1, 4);                     -- NULL: no path
-SELECT toy.graph_metrics(999);                         -- error: unknown graph
-SELECT (toy.shortest_path(1, 1, 4) ->> 1)::bigint;     -- 3
+SELECT toy.graph_metrics('Cx');                        -- triangle with tail
+SELECT toy.shortest_path('Cx', 0, 3);                  -- [0, 2, 3]
+SELECT toy.shortest_path('D`?', 0, 3);                 -- NULL: no path
+SELECT (toy.shortest_path('Cx', 0, 3) ->> 1)::bigint;  -- 2
+SELECT toy.graph_metrics('not graph6');                -- error: invalid graph6
 
--- results follow the data; roll back afterwards
-BEGIN;
-INSERT INTO toy.vertex VALUES (1, 5);
-INSERT INTO toy.edge VALUES (1, 4, 5);
-SELECT toy.shortest_path(1, 1, 5);                     -- [1, 3, 4, 5]
-ROLLBACK;
+-- any graph6 string works, not only stored ones: a 5-cycle
+SELECT toy.graph_metrics('Dhc');                       -- diameter 2, no triangles
+SELECT toy.shortest_path('Dhc', 0, 2);                 -- [0, 1, 2]
 ```
 
 Useful `psql` commands (no semicolon needed): `\dt toy.*` lists the tables,
-`\d toy.edge` shows a table's columns and constraints, `\df toy.*` lists the
-functions, and `\q` exits (the database keeps running).
+`\d toy.graph` shows a table's columns, `\df toy.*` lists the functions, and
+`\q` exits (the database keeps running).
 
 To run a single query from your shell:
 
 ```sh
-docker compose exec -T db psql -U graph_demo -d graph_demo -v ON_ERROR_STOP=1 -c "SELECT toy.shortest_path(1, 1, 4);"
+docker compose exec -T db psql -U graph_demo -d graph_demo -v ON_ERROR_STOP=1 -c "SELECT toy.shortest_path('Cx', 0, 3);"
 ```
 
 Expected metrics for the toy data:
 
-| Graph | Vertices | Edges | Components | Triangles | Diameter |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| triangle with tail | 4 | 4 | 1 | 1 | 2 |
-| two edges and an isolate | 5 | 2 | 3 | 0 | NULL |
-| empty graph | 0 | 0 | 0 | 0 | NULL |
-| singleton | 1 | 0 | 1 | 0 | 0 |
+| Graph | graph6 | Vertices | Edges | Components | Triangles | Diameter |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| triangle with tail | `Cx` | 4 | 4 | 1 | 1 | 2 |
+| two edges and an isolate | ``D`?`` | 5 | 2 | 3 | 0 | NULL |
+| empty graph | `?` | 0 | 0 | 0 | 0 | NULL |
+| singleton | `@` | 1 | 0 | 1 | 0 | 0 |
 
 Host clients can connect to `localhost:55432`, database and user `graph_demo`,
 password `graph_demo_local_only`. Change the Compose port if it is already used.

@@ -5,30 +5,16 @@ import json
 import networkx as nx
 
 
-def load_graph(plpy, graph_id):
-    # Values are bound through SPI; SQL identifiers are fixed and qualified.
-    exists = plpy.prepare("SELECT 1 FROM toy.graph WHERE id = $1", ["bigint"])
-    if not plpy.execute(exists, [graph_id]):
-        plpy.error("Unknown graph id: %s" % graph_id, sqlstate="22023")
-    vertices = plpy.prepare(
-        "SELECT vertex FROM toy.vertex WHERE graph_id = $1 ORDER BY vertex",
-        ["bigint"],
-    )
-    edges = plpy.prepare(
-        "SELECT source, target FROM toy.edge WHERE graph_id = $1",
-        ["bigint"],
-    )
-    graph = nx.Graph()
-    # Adding vertices separately preserves isolated vertices and empty graphs.
-    graph.add_nodes_from(row["vertex"] for row in plpy.execute(vertices, [graph_id]))
-    graph.add_edges_from(
-        (row["source"], row["target"]) for row in plpy.execute(edges, [graph_id])
-    )
-    return graph
+def parse_graph(plpy, graph6):
+    # Functions take the graph as a value and read no tables, so they are IMMUTABLE.
+    try:
+        return nx.from_graph6_bytes(graph6.encode("ascii"))
+    except Exception as e:
+        plpy.error("Invalid graph6 string %r: %s" % (graph6, e), sqlstate="22023")
 
 
-def metrics(plpy, graph_id):
-    graph = load_graph(plpy, graph_id)
+def metrics(plpy, graph6):
+    graph = parse_graph(plpy, graph6)
     connected = len(graph) > 0 and nx.is_connected(graph)
     # JSONB crosses the default PL/Python boundary as JSON text.
     return json.dumps({
@@ -42,8 +28,8 @@ def metrics(plpy, graph_id):
     })
 
 
-def shortest_path(plpy, graph_id, source, target):
-    graph = load_graph(plpy, graph_id)
+def shortest_path(plpy, graph6, source, target):
+    graph = parse_graph(plpy, graph6)
     if source not in graph or target not in graph:
         plpy.error("Both endpoints must be vertices of the graph", sqlstate="22023")
     try:
